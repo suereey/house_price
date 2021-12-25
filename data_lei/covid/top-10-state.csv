@@ -1,0 +1,11 @@
+RegionName,RegionType,StateName,FIPS,TotalCases
+New York County,County,NY,61036,49408601
+Los Angeles County,County,CA,06037,35960698
+Cook County,County,IL,17031,23574804
+Miami-Dade County,County,FL,12086,21175539
+Maricopa County,County,AZ,04013,18625289
+Harris County,County,TX,48201,16088564
+Dallas County,County,TX,48113,10603973
+Broward County,County,FL,12011,9657407
+Nassau County,County,NY,36059,9473223
+Suffolk County,County,NY,36103,9299083
