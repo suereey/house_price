@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<!-- This is the line chart with map  -->
+<head>
+    <!-- add title -->
+    <title>
+        House Price Under COVID-19 Impact
+    </title>
+    <meta charset="utf-8">
+    <!-- import required libraries here -->
+    <script src="assets/js/jquery-3.5.1.min.js"></script>
+    <script type="text/javascript" src="assets/js/d3.v5.min.js"></script>
+    <script type="text/javascript" src="assets/js/d3-dsv.min.js"></script>
+    <script type="text/javascript" src="assets/js/d3-tip.min.js"></script>
+    <script type="text/javascript" src="assets/js/d3-geo-projection.v2.min.js"></script>
+
+
+    <script>
+        $(window).on("load",function(){$(".loader-wrapper").fadeOut(1400); });
+    </script>
+
+
+    <style>
+        h1 {
+            color: black;
+        }
+        .tip-box{
+            line-height: 1.5;
+            font-weight: 400;
+            font-family:"avenir next", Arial, sans-serif;
+            padding: 6px;
+            background: rgba(31, 4, 4, 0.383);
+            color: #fff;
+            border-radius: 5px;
+            pointer-events: none;
+        }
+        #container{
+            max-width: 960px;
+            width: 960px;
+            min-height:  600px;
+            max-height:  600px;
+            height:  600px;
+            float:  left;
+            overflow: hidden;
+        }
+        #container_1{
+            float:  left;
+            height:  600px;
+            overflow: hidden;
+        }
+        #container_2{
+            width: 800px;
+            min-height:  400px;
+            max-height:  400px;
+            height:  600px;
+            padding:  150px 0px 150px 90px;
+            overflow: hidden;
+            /* height: ; */
+        }
+        /* #choropleth{
+            width:`
+        } */
+        body {
+            margin: 0;
+            padding: 0;
+            width:100vw;
+            height: 100vh;
+            background-color: #eee;
+        }
+        .content {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width:100%;
+            height:100%;
+        }
+        .loader-wrapper {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: #242f3f;
+            display:flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .loader {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            position: relative;
+            border: 4px solid #Fff;
+            animation: loader 2s infinite ease;
+        }
+        .loader-inner {
+            vertical-align: top;
+            display: inline-block;
+            width: 100%;
+            background-color: #fff;
+            animation: loader-inner 2s infinite ease-in;
+        }
+        @keyframes loader {
+            0% { transform: rotate(0deg);}
+            25% { transform: rotate(180deg);}
+            50% { transform: rotate(180deg);}
+            75% { transform: rotate(360deg);}
+            100% { transform: rotate(360deg);}
+        }
+        @keyframes loader-inner {
+            0% { height: 0%;}
+            25% { height: 0%;}
+            50% { height: 100%;}
+            75% { height: 100%;}
+            100% { height: 0%;}
+        }
+    </style>
+</head>
+
+
+<body>
+    <!-- Add heading for the visualization -->
+    <h1>House Price Under COVID-19 Impact</h1>
+    <!-- Inputs -->
+    <div>
+        <select id="selectButton"></select>
+        <input id="slider"></input> 
+        <text id="year"></text> 
+    </div>
+    <div id="choropleth"></div>
+    <div id="container_1"></div>
+    <div id="container_2"></div>
+    <div class="loader-wrapper">
+        <span class="loader"><span class="loader-inner"></span></span>
+    </div>
+
+
+    <script>
+        // enter code to define margin and dimensions for svg
+        const width = 900 
+        const height = 600 
+        const adj = 30
+        const margin = 0
+        const padding = 30
+        // When clicked, zoom in
+        function clicked(d) {
+            var x, y, k;
+            // Compute centroid of the selected path
+            if (d && centered !== d) {
+            var centroid = path.centroid(d);
+            x = centroid[0];
+            y = centroid[1];
+            // k = zoom.scaleExtent()[1];
+            k = 10;
+            centered = d;
+            }
+            else {
+                x = width / 2;
+                y = height / 2;
+                k = 1;
+                centered = null;
+            }
+            // console.log('debug zoom', x,y,k)
+            // Manually Zoom
+            svg.transition()
+            .duration(750)
+            .call(zoom.transform, d3.zoomIdentity.translate(width / 2, height / 2)
+                .scale(k)
+                .translate(-x, -y)
+                );
+        }
+        // enter code to create svg
+        // enter code to create color scale
+        const scale_quantile = d3.scaleQuantile()
+            .range(["#9ecae1", "#6baed6", "#3182bd", "#08519c"])
+        // enter code to define tooltip
+        const tip 
+            = d3.tip()
+                .attr('class', 'd3-tip')
+                .offset([-5, 5])
+                .html(function(d) { 
+                    if (d === undefined) {
+                        return ''
+                    }
+                    else{
+                    str_tip_box 
+                        = "<div class='tip-box'>"
+                        + "<strong>Country: </strong>"
+                        + "<span class='tip-details'>" + d.country+ " <br></span>"
+                        + "<strong>Game: </strong>"
+                        + "<span class='tip-details'>" + d.game_name + "<br></span>"
+                        + "<strong>Avg Rating: </strong>"
+                        + "<span class='tip-details'>" + d.average_rating+ "<br></span>"
+                        + "<strong>Number of Users: </strong>"
+                        + "<span class='tip-details'>" + d.number_of_users+ "<br></span>"
+                        + "</div>"
+                    // str_tip_box = '<p>test tip</p>'
+                    return str_tip_box; }
+                    }) 
+        // enter code to define projection and path required for Choropleth
+        // const projection = d3.geoRobinson().scale(160)
+        const projection = d3.geoAlbersUsa().scale(1200)
+            .translate([width / 2, height / 2]); 
+        const path = d3.geoPath().projection(projection)
+        // define any other global variables 
+        const timeConv = d3.timeParse("%Y-%m-%d");
+        const timeConverter_1 = d3.timeParse("%d/%m/%Y");
+        const timeConverter_2 = d3.timeParse("%b-%y");
+        const value_normal_opacity = 0.6
+        Promise.all([
+            // enter code to read files
+            d3.dsv(",", "data_lei/covid/county-level.csv", function(d) {
+                FIPS = d.FIPS
+                if (FIPS.length < 5){
+                    FIPS = '0' + FIPS
+                }
+                temp_list = {
+                    'date':timeConv(d.Date), 
+                    'FIPS':FIPS,
+                    'data':d.MonthlyAvgCases}
+                return temp_list
+            }),
+            d3.dsv(",", "data_lei/house/county-level.csv", function(d) {
+                FIPS = d.FIPS
+                if (FIPS.length < 5){
+                    FIPS = '0' + FIPS
+                }
+                temp_list = {
+                    'date':timeConv(d.Date), 
+                    'FIPS':FIPS,
+                    'data': d.HomeValue}
+                return temp_list
+            }),
+            d3.dsv(",", "data_lei/unemployment/county-level.csv", function(d) {
+                FIPS = d.FIPS
+                if (FIPS.length < 5){
+                    FIPS = '0' + FIPS
+                }
+                temp_list = {
+                    'date':timeConv(d.Date), 
+                    'FIPS':FIPS,
+                    'data':d['Unemployment Rate(%)']}
+                return temp_list
+            }),
+            d3.json("data_lei/map/gz_2010_us_050_00_500k.json")
+        ]).then(
+            // enter code to call ready() with required arguments
+            function(values) { 
+                // console.log("values start", values, "value end")
+                error = null
+                CovidData= values[0]
+                HouseData= values[1]
+                UnemploymentData= values[2]
+                world = values[3] 
+                data = {} 
+                for (i_county = 0; i_county < CovidData.length; i_county++){                        
+                    if (data[CovidData[i_county].FIPS] === undefined){
+                        data[CovidData[i_county].FIPS] = {}
+                        data[CovidData[i_county].FIPS][0] = []
+                        data[CovidData[i_county].FIPS][1] = []
+                        data[CovidData[i_county].FIPS][2] = []
+                    }
+                    data[CovidData[i_county].FIPS.toString()][0].push(
+                        {'date':CovidData[i_county].date, 
+                        'data':CovidData[i_county].data})
+                }
+                for (i_county = 0; i_county < HouseData.length; i_county++){                        
+                    if (data[HouseData[i_county].FIPS] === undefined){
+                        data[HouseData[i_county].FIPS] = {}
+                        data[HouseData[i_county].FIPS][0] = []
+                        data[HouseData[i_county].FIPS][1] = []
+                        data[HouseData[i_county].FIPS][2] = []
+                    }
+                    data[HouseData[i_county].FIPS.toString()][1].push({
+                        'date':HouseData[i_county].date, 
+                        'data':HouseData[i_county].data})
+                }
+                for (i_county = 0; i_county < UnemploymentData.length; i_county++){                        
+                    if (data[UnemploymentData[i_county].FIPS] === undefined){
+                        data[UnemploymentData[i_county].FIPS] = {}
+                        data[UnemploymentData[i_county].FIPS][0] = []
+                        data[UnemploymentData[i_county].FIPS][1] = []
+                        data[UnemploymentData[i_county].FIPS][2] = []
+                    }
+                    data[UnemploymentData[i_county].FIPS.toString()][2].push(
+                        {'date':UnemploymentData[i_county].date, 
+                        'data':UnemploymentData[i_county].data})
+                }
+                // console.log(data)
+                ready(error, world, data)
+            }
+        );
+        // this function should be called once the data from files have been read
+        // world: topojson from world_countries.json
+        
+        function ready(error, world, data) {
+            // Show data for debug
+            // console.log(CovidData)
+            // Append data display option over map 
+            list_options = [
+                {"index":0, "name":"covid"}, 
+                {"index":1, "name":"house"}, 
+                {"index":2, "name":"unemployment"}]
+            // console.log(list_options)
+            d3.select("#selectButton")
+                .selectAll('myOptions')
+                    .data(list_options)
+                    .enter()
+                    .append('option')
+                    .text(function (d) {return d.name;}) // text showed in the menu
+                    .attr("value", function (d) { return d.index; }) // corresponding value returned by the button
+    
+            var button_status = d3.select('#selectButton').property('value')
+            var selected_date = new Date("Wed, 01 July 2020 00:00:00");
+            var selected_timestamp = selected_date.getTime() 
+            var slider = d3.select("#slider")
+            list_eisting_times = [] 
+            for(i_time = 0; i_time < data['01001'][button_status].length; i_time++){
+                list_eisting_times.push(data['01001'][button_status][i_time].date)
+                if (Math.abs((data['01001'][button_status][i_time].date.getTime() - selected_timestamp) / 1000 / 24 / 3600 ) <= 16){
+                    index_selected = i_time
+                    }
+            }
+            slider.attr("type", "range").attr("max",list_eisting_times.length).attr("min", 0).attr("value", 0)
+            d3.select("#slider").on("input", function() {
+                button_status = d3.select("#selectButton").property('value')
+                // console.log(button_status)
+                i_slider = d3.select("#slider").property('value') 
+                // list_eisting_times = list_eisting_times[i_slider] 
+                // console.log(i_slider)
+                createMapAndLegend(world, data, button_status, i_slider)
+            })
+            var handle = slider.insert("g",).attr("class", "handle")
+            handle.append("text").text(selected_date).attr("transform", "translate(" + 0 + "," + 10, ")")
+            // var slider = svg_slider.append("g").attr("class", "slider")
+            d3.select('#selectButton').on('change', function(d){
+                button_status = d3.select("#selectButton").property('value')
+                // console.log(button_status)
+                i_slider = d3.select("#slider").property('value') 
+                // list_eisting_times = list_eisting_times[i_slider] 
+                createMapAndLegend(world, data, button_status, i_slider)
+            })
+            // create Choropleth with default option. Call createMapAndLegend() with required arguments. 
+            var button_status = d3.select('#selectButton').property('value')
+            // console.log(button_status)
+            i_slider = d3.select("#slider").property('value') 
+            // list_eisting_times = list_eisting_times[i_slider] 
+            createMapAndLegend(world, data, button_status, i_slider)
+            }
+        //  USA map
+        function createMapAndLegend(world, data, button_status, i_slider){ 
+            // d3.select('#selectButton').on('change', function(d){
+            //     button_status = d3.select(this).property('value')
+            //     // console.log('button status', button_status)
+            // })
+            // CovidData= data[0]
+            // HouseData= data[1]
+            // UnemploymentData= data[2]
+            // list_eisting_times = [] 
+            // for(i_time = 0; i_time < data['01001'][button_status].length; i_time++){
+            //     list_eisting_times.push(data['01001'][button_status][i_time].date)
+            //     if (Math.abs((data['01001'][button_status][i_time].date.getTime() - selected_timestamp) / 1000 / 24 / 3600 ) <= 16){
+            //         index_selected = i_time
+            //         }
+            // }
+            index_selected = i_slider
+            selected_timestamp =  data['01001'][button_status][index_selected].date
+            list_data_being_presented = []
+        
+            Object.keys(data).forEach(
+                function(d) {                        
+                    // console.log(data[d][button_status][index_selected])
+                    if (data[d] === undefined){
+                        list_data_being_presented.push(0)
+                    } 
+                    else if (data[d][button_status][index_selected] === undefined){
+                        list_data_being_presented.push(0)
+                    } 
+                    else{
+                        list_data_being_presented.push(data[d][button_status][index_selected].data)
+                    }
+                })                                
+            // console.log(list_data_being_presented)
+            value_min_average_rating = 0 // d3.min(list_data_being_presented)
+            value_max_average_rating = d3.max(list_data_being_presented)
+            // console.log(value_min_average_rating, value_max_average_rating)
+            value_delta_max_min = value_max_average_rating - value_min_average_rating
+            list_color_scale_values = [
+                parseFloat(value_min_average_rating + value_delta_max_min * 0 / 4),
+                parseFloat(value_min_average_rating + value_delta_max_min * 1 / 4),
+                parseFloat(value_min_average_rating + value_delta_max_min * 2 / 4),
+                parseFloat(value_min_average_rating + value_delta_max_min * 3 / 4),
+                parseFloat(value_min_average_rating + value_delta_max_min * 4 / 4),
+            ]                 
+            // console.log(list_color_scale_values)
+            // console.log(typeof(list_color_scale_values[1]))
+            scale_quantile.domain(list_color_scale_values)
+            var date_showing = new Date(selected_timestamp)
+            var format_time = d3.timeFormat("%m-%Y")
+            if (typeof svg !== 'undefined'){
+                svg.remove()
+            }
+            svg = d3.select("div#choropleth").append("svg")
+                .attr("id", "svg")
+                .style("width", "900px")
+                .style("height", "600px")
+                .append('g')
+                .attr("class", "map")
+            svg.append("text")
+                .attr("x", width * 0.75)
+                .attr("y", height * 0.10 )
+                .text(format_time(date_showing))
+                .style("font-size", "20px")
+                .style("text-anchor", "begin")
+                .style("alignment-baseline", "middle")
+                .attr("class", "year_text")
+            d3.selectAll(".legend_box").remove()
+            d3.selectAll(".legend_text").remove()
+            d3.selectAll(".map_draw").remove()
+            for (i_color_band = 0; i_color_band < list_color_scale_values.length - 1; i_color_band ++) {
+                value_legend_width = height / 30
+                svg.append("rect")
+                    .attr("x", width * 0.85)
+                    .attr("y", height * (0.70 + 0.05 * i_color_band) - value_legend_width / 2)
+                    .attr("height", value_legend_width)
+                    .attr("width", value_legend_width)
+                    .attr("class", "legend_box")
+                    .style("fill", scale_quantile(list_color_scale_values[i_color_band]))
+                    .style("stroke", scale_quantile(list_color_scale_values[i_color_band]))
+                svg.append("text")
+                    .attr("x", width * 0.85 + value_legend_width * 1.3)
+                    .attr("y", height * (0.70 + 0.05 * i_color_band))
+                    .text(list_color_scale_values[i_color_band].toFixed(1) 
+                            + " to " 
+                            + list_color_scale_values[i_color_band + 1].toFixed(1))
+                    .style("font-size", "12px")
+                    .style("text-anchor", "begin")
+                    .style("alignment-baseline", "middle")
+                    .attr("class", "legend_text")
+            }
+            // console.log(world)
+                
+            dict_map_data = {}
+            for (i_feature = 0; i_feature < world.features.length; i_feature++) {
+                FIPS = world.features[i_feature].properties['GEO_ID'].substr(9)
+                // console.log(FIPS)
+                if (data[FIPS] === undefined) {
+                    dict_map_data[FIPS] = {
+                        'data': 0 
+                        } 
+                    }
+                else if (data[FIPS][button_status][index_selected] === undefined) {
+                    dict_map_data[FIPS] = {
+                        'data': 0 
+                        } 
+                    } 
+                else{
+                    dict_map_data[FIPS] = {
+                        'data': data[FIPS][button_status][index_selected].data
+                        } 
+                    }
+                }
+            // for (i = 0; i < world.features.length; i++) {
+            //     index = data[button_status].findIndex(p => 
+            //         p.FIPS== world.features[i].properties['GEO_ID'].substr(9) 
+            //         && Math.abs((p.date.getTime() - selected_timestamp) / 1000 / 24 / 3600 ) <= 16)
+            //     if (index >=0){
+            //         dict_map_data[world.features[i].properties['GEO_ID'].substr(9)] 
+            //             = {
+            //                 'data':data[0][index].data
+            //             }
+            //         }
+            //     else{
+            //         dict_map_data[world.features[i].properties['GEO_ID'].substr(9)] 
+            //             = {
+            //                 'data':0
+            //             }
+            //         }
+            //     }
+            let zoom = d3.zoom().scaleExtent([1, 12]).on("zoom", zoomed);
+            // // define zoom function
+            function zoomed() {country_group.attr("transform", d3.event.transform); }
+            svg = d3.select("svg#svg")
+            svg.style("pointer-events", "all").call(zoom);
+            svg.call(tip)
+            // var graticule = d3.geoGraticule()
+            // var country_group = svg.append("g")
+            let country_group = svg.append("g")
+                .selectAll("path")
+                .data(world.features)
+                .enter().append("path")
+                .on("click", clicked)
+                .on("dblclick", clicked)
+                .attr("d", path)
+                .style('class', 'map_draw')
+                .style('stroke', 'white')
+                .style('stroke-width', 1)
+                .style('opacity', value_normal_opacity)
+                .attr('FIPS', function(d){
+                    return d.properties['GEO_ID'].substr(9)
+                })
+                .attr("fill", function(d) {
+                    // console.log(d)
+                    if (dict_map_data[d.properties['GEO_ID'].substr(9)] !== undefined){
+                        return scale_quantile(parseFloat(dict_map_data[d.properties['GEO_ID'].substr(9)].data))
+                    }
+                })
+                // .call(d3.zoom().on("zoom", function() {svg.attr("transform", d3.event.transform)}))
+                .on('mouseover',handle_mouse_over)
+                .on('mouseout', handle_mouse_out);
+        }
+    function handle_mouse_over(d, i) {
+        FIPS = parseFloat(this.getAttribute('FIPS'))
+        // console.log(this)
+        // console.log(FIPS)
+        // console.log(i)
+        // console.log(data)
+        plot_line_chart(data[FIPS])
+        return null}
+    function handle_mouse_out(d, i) {
+        return null
+        }
+    function plot_line_chart(list_data) {
+        // console.log(list_data)
+        if (document.getElementById("svg_2") !== null){
+            d3.select("svg#svg_2").remove()
+        }
+        list_type = ['covid', 'house','unemployment']
+        list_color = ['steelblue', 'red', 'pink']
+        list_max_x_for_each_data = []
+        list_min_x_for_each_data = [] 
+        list_max_y_for_each_data = [] 
+        list_function_y = []
+        for (i_type=0; i_type<3; i_type++ ) { // # button_status = list_type[i]
+            if (list_data !== undefined) {
+                var list_presented_data = list_data[i_type]
+                list_date = []
+                list_presented_data.forEach(
+                    function(d) {
+                        list_date.push(d.date)})
+                value_max_date = d3.max(list_date)
+                value_min_date = d3.min(list_date)
+                    // .x(function (d) { console.log(x(d.date)); return x(d.date) })
+                    // .y(function (d) { console.log(y(d[button_status])); return y(d[button_status])})
+                var value_maxdate = d3.max(list_presented_data.map(function (value) { return value.date }))
+                var value_mindate = d3.min(list_presented_data.map(function (value) { return value.date }))
+                var value_max_y = d3.max(list_presented_data.map(function (value) { return value.data}))
+                list_max_x_for_each_data.push(value_maxdate)
+                list_min_x_for_each_data.push(value_mindate)
+                list_max_y_for_each_data.push(value_max_y)
+            }
+        }
+        value_maxdate = d3.max(list_max_x_for_each_data)
+        // value_mindate = d3.min(list_min_x_for_each_data)
+        // var value_mindate = new Date('01 Jan 2019 00:00:00 GMT') 
+        value_mindate = new  Date(value_maxdate - 1000 * 60 * 60 * 24 * 365)
+        // x.domain([new Date.parse('01 Jan 2019 00:00:00 GMT'), new Date(value_maxdate)])
+        value_max_y = d3.max(list_max_y_for_each_data)
+        // console.log('svg2 data processed')
+        var svg2 = d3.select("div#container_2").append("svg")
+            .attr("id", "svg_2")
+            .attr("width", "600px")
+            .attr("height", "400px")
+            .attr("preserveAspectRatio", "xMinYMin meet")
+            .attr("viewBox", "-"
+                + adj * 2 + " -"
+                + adj * 2+ " "
+                + (width + adj * 5) + " "
+                + (height + adj * 5))
+            .style("padding", "0px")
+        // Add title
+        svg2.append("text")
+            .attr("id", "title_svg2")
+            .attr("x", (width / 2))
+            .attr("y", 0 - adj / 2)
+            .attr("text-anchor", "middle")
+            .style("font-size", "24px")
+            .attr("id", "title")
+            .style("font-weight", "700")
+            .text("House Price vs COVID and Unemployment Rate in 1 Year");
+        //  X label 
+        svg2.append("text")
+            .attr("x", (width / 2))
+            .attr("y", height + adj / 4 * 5.2)
+            .attr("text-anchor", "middle")
+            .style("font-size", "26px")
+            .style("font-weight", "bold")
+            .text("Time")
+        svg2.append("text")
+            .attr("transform", "rotate(90)")
+            .attr("x", 300)
+            .attr("y", 50 )
+            .attr("text-anchor", "middle")
+            .style("font-size", "26px")
+            .style("font-weight", "bold")
+            .text("House price")
+        x_bar = d3.scaleLinear().range([0, width])
+        x_bar.domain([value_mindate, value_maxdate])
+        var xaxis_bar 
+            = d3.axisBottom()
+                .scale(x_bar)
+                .ticks()
+                .tickFormat(d3.timeFormat("%m-%y"))
+        
+        svg2.append("g")
+            .attr("class", "axis")
+            .attr("transform", "translate(0," + height + ")")
+            .call(xaxis_bar)
+            .attr('font-size', '12pt')
+        function make_x_gridlines(){
+            return d3.axisBottom().scale(x_bar).ticks()
+        }
+        svg2.append("g")            
+            .attr("class", "grid")
+            .attr("transform", "translate(0, " + height + ")")
+            .style("opacity", 0.2)
+            .call(make_x_gridlines()
+                .tickSize(-height)
+            )
+        x = d3.scaleTime().range([0, width])
+        x.domain([new Date(value_mindate), new Date(value_maxdate)])
+        console.log('svg2 start loop')
+        for (i_type=0; i_type<3; i_type++ ) { // # button_status = list_type[i]
+            var list_presented_data = list_data[i_type]
+            y = d3.scaleLinear().range([height, 500])
+            y.domain([0,list_max_y_for_each_data[i_type]])
+            y_bar = d3.scaleLinear().range([0, height])
+            y_bar.domain([0, list_max_y_for_each_data[i_type]])
+            yaxis_bar = d3.axisLeft().scale(y_bar).tickValues([]);
+            if (i_type === 1){
+                y.domain([25000, 60000])
+            }
+            if (i_type === 1){
+                var yaxis_bar = d3.axisBottom()
+                        .scale(y_bar)
+                        .ticks()
+                        .tickFormat(d3.timeFormat("%m-%y"))
+                svg2.append("g")
+                    .attr("class", "axis")
+                    .attr("transform", "translate(0," + height + ")")
+                    .attr("transform", "rotate(90)")
+                    .call(yaxis_bar)
+                    .style("fill", 'black')
+                    .attr('font-size', '12pt')
+            }
+            console.log('plotting ', i_type)
+            var line_generator = d3.line()
+                .x(function (d) {return x(d.date) })
+                .y(function (d) {return y(d.data)})
+            svg2.append("path")
+                .datum(list_presented_data)
+                .attr("class", "line")
+                .attr("d", line_generator)
+                .style("stroke", list_color[i_type])
+                .style("fill", "none")
+                .style("stroke-width", '2px')
+            svg2.append("text")
+                .attr("x", (width + adj * 0.1 ))
+                .attr("y", 30 * i_type)
+                .style("stroke", list_color[i_type])
+                //.style("fill", "none")
+                .attr("text-anchor", "middle")
+                .style("font-size", "20px")
+                .text(list_type[i_type]) // Here needs to be updated
+        }
+    }
+    </script>
+</body>
+
+</html>
